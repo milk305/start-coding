@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>存储器工作原理演示 · 编号储物柜模型</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+    background:linear-gradient(160deg,#eef4ff 0%,#f6f8fc 55%,#eef7ff 100%);
+    color:#1e293b; padding:24px 16px 60px;
+  }
+  .wrap{ max-width:1180px; margin:0 auto; }
+  h1{ text-align:center; font-size:28px; color:#1e293b; letter-spacing:1px; }
+  h1 .emoji{ margin-right:6px; }
+  .subtitle{ text-align:center; color:#64748b; margin-top:8px; font-size:15px; }
+
+  .card{
+    background:#fff; border:1px solid #e3eaf5; border-radius:16px;
+    box-shadow:0 8px 24px rgba(30,58,138,.07); padding:18px 20px; margin-top:18px;
+  }
+
+  /* ---------- 控制面板 ---------- */
+  .controls{ display:flex; flex-wrap:wrap; gap:18px 28px; align-items:flex-end; }
+  .ctl-group{ display:flex; flex-direction:column; gap:8px; }
+  .ctl-label{ font-size:13px; font-weight:700; color:#475569; }
+  .seg{ display:flex; border:2px solid #c7d2fe; border-radius:10px; overflow:hidden; }
+  .seg button{
+    border:none; background:#fff; padding:9px 16px; font-size:14px; font-weight:700;
+    cursor:pointer; color:#6366f1; transition:all .15s;
+  }
+  .seg button.on{ background:#6366f1; color:#fff; }
+  .seg button:disabled{ opacity:.45; cursor:not-allowed; }
+  .addr-grid{ display:grid; grid-template-columns:repeat(8,1fr); gap:5px; }
+  .addr-grid button{
+    width:38px; height:30px; border:2px solid #cbd5e1; background:#f8fafc; border-radius:7px;
+    font-weight:700; font-size:13px; color:#475569; cursor:pointer; transition:all .12s;
+  }
+  .addr-grid button.on{ background:#f59e0b; border-color:#d97706; color:#fff; }
+  .addr-grid button:disabled{ opacity:.45; cursor:not-allowed; }
+  .bits{ display:flex; gap:6px; }
+  .bits button{
+    width:44px; height:40px; border:2px solid #93c5fd; background:#eff6ff; border-radius:9px;
+    font-family:ui-monospace,Consolas,monospace; font-size:22px; font-weight:800; color:#2563eb;
+    cursor:pointer; transition:all .12s;
+  }
+  .bits button.b1{ background:#2563eb; border-color:#1d4ed8; color:#fff; }
+  .bits button:disabled{ opacity:.4; cursor:not-allowed; }
+  .hint-inline{ font-size:12px; color:#94a3b8; }
+  .play-btns{ display:flex; gap:8px; margin-left:auto; flex-wrap:wrap; }
+  .play-btns button{
+    border:none; border-radius:10px; padding:11px 18px; font-size:15px; font-weight:800;
+    cursor:pointer; transition:all .15s; color:#fff; box-shadow:0 4px 10px rgba(0,0,0,.12);
+  }
+  .btn-play{ background:#22c55e; } .btn-play:hover{ background:#16a34a; }
+  .btn-step{ background:#f59e0b; } .btn-step:hover{ background:#d97706; }
+  .btn-pause{ background:#64748b; }
+  .btn-reset{ background:#ef4444; } .btn-reset:hover{ background:#dc2626; }
+  .play-btns button:disabled{ opacity:.4; cursor:not-allowed; }
+  .speed-seg button{ padding:9px 12px; font-size:13px; }
+
+  /* ---------- 场景 ---------- */
+  #sceneWrap{ position:relative; width:100%; overflow:hidden; margin-top:18px; }
+  #scene{ position:relative; width:1340px; height:640px; transform-origin:top left; }
+  svg.layer{ position:absolute; inset:0; z-index:1; }
+  .bus{ fill:none; stroke-width:5; stroke-linecap:round; opacity:.3; transition:opacity .3s; }
+  .bus.active{ opacity:1; stroke-dasharray:12 10; animation:dash .7s linear infinite; }
+  .fan{ fill:none; stroke-width:2.5; opacity:.12; transition:opacity .3s; }
+  .fan.active{ opacity:.95; stroke-dasharray:6 6; animation:dash .5s linear infinite; }
+  .red{ stroke:#ef4444; } .green{ stroke:#22c55e; } .blue{ stroke:#3b82f6; }
+  @keyframes dash{ to{ stroke-dashoffset:-24; } }
+
+  .box{
+    position:absolute; z-index:2; background:#fff; border:2px solid; border-radius:14px;
+    padding:10px 12px; text-align:center; box-shadow:0 8px 18px rgba(15,23,42,.08);
+    transition:box-shadow .25s, transform .25s;
+  }
+  .box .box-title{ font-weight:800; font-size:16px; }
+  .box .box-sub{ font-size:12px; color:#94a3b8; margin-top:2px; }
+  .box.hl{ transform:translateY(-3px) scale(1.04); }
+  #cpu{
+    left:30px; top:225px; width:185px; height:200px; border-color:#6366f1;
+    background:linear-gradient(160deg,#818cf8,#6366f1); color:#fff; z-index:3;
+  }
+  #cpu.hl{ box-shadow:0 0 0 5px rgba(99,102,241,.25), 0 0 30px rgba(99,102,241,.55); }
+  .cpu-title{ font-size:18px; font-weight:800; margin-bottom:10px; }
+  .cpu-row{ display:flex; align-items:center; gap:8px; margin:9px 0; font-size:12px; }
+  .cpu-row span{ width:44px; text-align:right; opacity:.9; }
+  .screen{
+    flex:1; background:#0f172a; border-radius:8px; font-family:ui-monospace,Consolas,monospace;
+    color:#7dd3fc; font-size:16px; font-weight:700; letter-spacing:2px; padding:4px 6px;
+    transition:color .2s, box-shadow .2s; min-height:28px;
+  }
+  .screen.lit{ color:#fde047; box-shadow:0 0 12px rgba(253,224,71,.55); }
+  #mar{ left:838px; top:78px; width:132px; border-color:#8b5cf6; }
+  #mar .box-title{ color:#7c3aed; }
+  #mar.hl{ box-shadow:0 0 0 5px rgba(139,92,246,.25), 0 0 28px rgba(139,92,246,.5); }
+  #decoder{ left:838px; top:224px; width:132px; border-color:#f59e0b; }
+  #decoder .box-title{ color:#d97706; }
+  #decoder.hl{ box-shadow:0 0 0 5px rgba(245,158,11,.28), 0 0 28px rgba(245,158,11,.55); }
+  #mdr{ left:838px; top:448px; width:132px; border-color:#0ea5e9; }
+  #mdr .box-title{ color:#0284c7; }
+  #mdr.hl{ box-shadow:0 0 0 5px rgba(14,165,233,.25), 0 0 28px rgba(14,165,233,.5); }
+  .box .screen{ margin-top:8px; font-size:18px; padding:5px; }
+
+  .mem-title{ position:absolute; left:1010px; top:148px; z-index:2; font-weight:800; color:#92400e; font-size:15px; }
+  #grid{
+    position:absolute; left:1010px; top:190px; z-index:2;
+    display:grid; grid-template-columns:repeat(4,74px); grid-template-rows:repeat(4,74px); gap:10px;
+  }
+  .cell{ position:relative; width:74px; height:74px; perspective:500px; cursor:pointer; }
+  .door{
+    position:absolute; inset:0; z-index:2; border:2px solid #d97706; border-radius:10px;
+    background:linear-gradient(160deg,#fde68a,#fbbf24);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transform-origin:left center; transition:transform .5s ease; backface-visibility:hidden;
+    box-shadow:0 3px 8px rgba(180,83,9,.25);
+  }
+  .door .d-addr{ font-family:ui-monospace,Consolas,monospace; font-weight:800; font-size:15px; color:#7c2d12; }
+  .door .d-no{ font-size:11px; color:#9a3412; margin-top:1px; }
+  .interior{
+    position:absolute; inset:0; z-index:1; border:2px dashed #94a3b8; border-radius:10px;
+    background:#f8fafc; display:flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,Consolas,monospace; font-weight:800; font-size:17px; letter-spacing:1px;
+  }
+  .interior .empty{ font-size:13px; color:#cbd5e1; font-family:inherit; letter-spacing:0; }
+  .interior .b1{ color:#2563eb; } .interior .b0{ color:#cbd5e1; }
+  .cell.open .door{ transform:rotateY(-82deg); }
+  .cell.open{ box-shadow:0 0 0 3px rgba(245,158,11,.55), 0 0 22px rgba(245,158,11,.5); border-radius:10px; }
+  .cell.flash .interior{ background:#dcfce7; border:2px solid #22c55e; animation:flash .8s ease; }
+  @keyframes flash{ 0%{box-shadow:0 0 0 0 rgba(34,197,94,.7);} 100%{box-shadow:0 0 0 14px rgba(34,197,94,0);} }
+  .cell.target .door{ outline:3px dashed #6366f1; outline-offset:2px; }
+  .cell.pulse-cell{ animation:cellPulse .55s ease; }
+  @keyframes cellPulse{ 0%{transform:scale(1);} 45%{transform:scale(1.12);} 100%{transform:scale(1);} }
+
+  .bus-label{
+    position:absolute; z-index:3; font-size:12.5px; font-weight:800; background:#fff;
+    padding:3px 10px; border-radius:999px; border:2px solid; white-space:nowrap;
+  }
+  .bl-addr{ left:395px; top:80px; color:#dc2626; border-color:#fca5a5; background:#fff5f5; }
+  .bl-ctrl{ left:395px; top:262px; color:#16a34a; border-color:#86efac; background:#f0fdf4; }
+  .bl-data{ left:395px; top:452px; color:#2563eb; border-color:#93c5fd; background:#eff6ff; }
+
+  .pkt{
+    position:absolute; left:0; top:0; z-index:6; opacity:0; transition:opacity .25s;
+    padding:8px 14px; border-radius:999px; font-weight:800; font-size:14px; background:#fff;
+    border:2.5px solid; white-space:nowrap; pointer-events:none;
+    box-shadow:0 6px 14px rgba(15,23,42,.18);
+  }
+  .pkt.a{ border-color:#ef4444; color:#b91c1c; background:#fff5f5; }
+  .pkt.c{ border-color:#16a34a; color:#15803d; background:#f0fdf4; }
+  .pkt.d{ border-color:#2563eb; color:#1d4ed8; background:#eff6ff; }
+
+  /* ---------- 步骤讲解 ---------- */
+  .step-card{ display:flex; gap:18px; align-items:flex-start; }
+  .step-badge{
+    flex:none; width:74px; height:74px; border-radius:50%; background:linear-gradient(160deg,#818cf8,#6366f1);
+    color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-weight:800; box-shadow:0 6px 16px rgba(99,102,241,.4);
+  }
+  .step-badge .num{ font-size:24px; line-height:1; }
+  .step-badge .tot{ font-size:11px; opacity:.85; margin-top:3px; }
+  .step-badge.done{ background:linear-gradient(160deg,#4ade80,#16a34a); }
+  .step-body{ flex:1; }
+  .step-title{ font-size:19px; font-weight:800; color:#1e293b; }
+  .step-desc{ margin-top:8px; font-size:15px; line-height:1.75; color:#475569; }
+  .step-desc b{ color:#dc2626; }
+  .step-desc i{ font-style:normal; color:#16a34a; font-weight:700; }
+  .step-desc em{ font-style:normal; color:#2563eb; font-weight:700; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip{
+    font-size:13px; font-weight:700; padding:5px 12px; border-radius:999px;
+    background:#f1f5f9; color:#475569; border:1.5px solid #e2e8f0;
+  }
+  .chip .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+  .progress{ display:flex; gap:7px; margin-top:14px; }
+  .progress i{ width:26px; height:6px; border-radius:3px; background:#e2e8f0; transition:background .2s; }
+  .progress i.done{ background:#818cf8; } .progress i.cur{ background:#6366f1; }
+
+  /* ---------- 图例 ---------- */
+  .legend{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; margin-top:18px; }
+  .leg{
+    background:#fff; border:1px solid #e3eaf5; border-radius:12px; padding:12px 14px;
+    display:flex; gap:10px; align-items:center; box-shadow:0 4px 10px rgba(30,58,138,.05);
+  }
+  .leg .ic{ flex:none; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; font-weight:800; }
+  .leg .t{ font-weight:800; font-size:14px; }
+  .leg .d{ font-size:12.5px; color:#64748b; margin-top:2px; line-height:1.5; }
+  .foot-note{ text-align:center; color:#94a3b8; font-size:13px; margin-top:22px; line-height:1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="emoji">🧠</span>存储器工作原理演示</h1>
+  <p class="subtitle">编号储物柜模型：看 CPU 怎样把数据<b>存进</b>内存、又怎样把数据<b>取出</b>来</p>
+
+  <!-- 控制面板 -->
+  <div class="card">
+    <div class="controls">
+      <div class="ctl-group">
+        <span class="ctl-label">① 做什么？</span>
+        <div class="seg" id="opSeg">
+          <button data-op="write" class="on">📥 写入数据（存）</button>
+          <button data-op="read">📤 读取数据（取）</button>
+        </div>
+      </div>
+      <div class="ctl-group">
+        <span class="ctl-label">② 选哪个柜子？（门牌号 = 地址）</span>
+        <div class="addr-grid" id="addrGrid"></div>
+      </div>
+      <div class="ctl-group" id="dataGroup">
+        <span class="ctl-label">③ 存什么数据？（点 0/1 切换）</span>
+        <div class="bits" id="bits">
+          <button data-i="0">0</button><button data-i="1">1</button>
+          <button data-i="2">1</button><button data-i="3">0</button>
+        </div>
+        <span class="hint-inline">当前数据：<b id="dataPreview">0110</b></span>
+      </div>
+      <div class="ctl-group">
+        <span class="ctl-label">播放速度</span>
+        <div class="seg speed-seg" id="speedSeg">
+          <button data-s="0.7">🐢 慢</button>
+          <button data-s="1" class="on">🚶 中</button>
+          <button data-s="1.7">🏃 快</button>
+        </div>
+      </div>
+      <div class="play-btns">
+        <button class="btn-play" id="btnPlay">▶ 自动播放</button>
+        <button class="btn-step" id="btnStep">⏭ 单步</button>
+        <button class="btn-pause" id="btnPause" disabled>⏸ 暂停</button>
+        <button class="btn-reset" id="btnReset">↺ 重置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 动画场景 -->
+  <div class="card" style="padding:10px;">
+    <div id="sceneWrap">
+      <div id="scene">
+        <svg class="layer" width="1340" height="640">
+          <defs>
+            <marker id="arrR" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#ef4444"/></marker>
+            <marker id="arrG" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#22c55e"/></marker>
+            <marker id="arrB" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#3b82f6"/></marker>
+          </defs>
+          <!-- 地址总线：CPU -> MAR -->
+          <path id="pathAddr" class="bus red" d="M 215 262 V 120 H 836" marker-end="url(#arrR)"/>
+          <!-- MAR -> 译码器 -->
+          <path id="pathMarDec" class="bus red" d="M 904 162 V 222" marker-end="url(#arrR)"/>
+          <!-- 控制总线 -->
+          <path id="pathCtrl" class="bus green" d="M 215 300 H 968" marker-end="url(#arrG)"/>
+          <!-- 数据总线：双向 -->
+          <path id="pathData" class="bus blue" d="M 217 490 H 836" marker-end="url(#arrB)"/>
+          <!-- 译码器 -> 各行柜子 -->
+          <path id="fanR0" class="fan red" d="M 970 252 L 1008 227"/>
+          <path id="fanR1" class="fan red" d="M 970 252 L 1008 311"/>
+          <path id="fanR2" class="fan red" d="M 970 252 L 1008 395"/>
+          <path id="fanR3" class="fan red" d="M 970 252 L 1008 479"/>
+          <!-- MDR -> 各行柜子 -->
+          <path id="fanB0" class="fan blue" d="M 970 490 L 1008 227"/>
+          <path id="fanB1" class="fan blue" d="M 970 490 L 1008 311"/>
+          <path id="fanB2" class="fan blue" d="M 970 490 L 1008 395"/>
+          <path id="fanB3" class="fan blue" d="M 970 490 L 1008 479"/>
+        </svg>
+
+        <!-- CPU -->
+        <div class="box" id="cpu">
+          <div class="cpu-title">🖥️ CPU 处理器</div>
+          <div class="cpu-row"><span>门牌号</span><div class="screen" id="cpuAddr">····</div></div>
+          <div class="cpu-row"><span>数　据</span><div class="screen" id="cpuData">····</div></div>
+          <div class="cpu-row"><span>命　令</span><div class="screen" id="cpuCmd" style="font-size:14px;">待机</div></div>
+        </div>
+
+        <!-- MAR / 译码器 / MDR -->
+        <div class="box" id="mar">
+          <div class="box-title">MAR</div>
+          <div class="box-sub">地址寄存器 · 收件室</div>
+          <div class="screen" id="marScreen">····</div>
+        </div>
+        <div class="box" id="decoder">
+          <div class="box-title">地址译码器</div>
+          <div class="box-sub">仓库管理员 👷</div>
+        </div>
+        <div class="box" id="mdr">
+          <div class="box-title">MDR</div>
+          <div class="box-sub">数据寄存器 · 暂存数据</div>
+          <div class="screen" id="mdrScreen">····</div>
+        </div>
+
+        <!-- 总线标签 -->
+        <div class="bus-label bl-addr">地址总线 · 只传门牌号（单向）→</div>
+        <div class="bus-label bl-ctrl">控制总线 · 传“读 / 写”命令 →</div>
+        <div class="bus-label bl-data">数据总线 · 传真正的数据（双向）↔</div>
+
+        <!-- 内存柜子 -->
+        <div class="mem-title">🧺 内存储器 RAM（编号储物柜）</div>
+        <div id="grid"></div>
+
+        <!-- 动画数据包 -->
+        <div class="pkt a" id="pktAddr">📍 地址</div>
+        <div class="pkt c" id="pktCtrl">✏️ 命令</div>
+        <div class="pkt d" id="pktData">📦 数据</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 步骤讲解 -->
+  <div class="card">
+    <div class="step-card">
+      <div class="step-badge" id="stepBadge"><span class="num">?</span><span class="tot">共 7 步</span></div>
+      <div class="step-body">
+        <div class="step-title" id="stepTitle">准备就绪</div>
+        <div class="step-desc" id="stepDesc">
+          先在上面选择 <b>“写入”</b> 或 <i>“读取”</i>，再选一个柜子号（也可以直接点右边的柜子），
+          然后点击 <em>▶ 自动播放</em> 或 <em>⏭ 单步</em>。跟着高亮发光的部件，看数据是怎么一步步走路的！
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="progress" id="progress"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部件图例 -->
+  <div class="legend">
+    <div class="leg"><div class="ic" style="background:#6366f1;">CPU</div><div><div class="t">CPU 处理器</div><div class="d">发号施令的人：给出地址、数据，发出读/写命令</div></div></div>
+    <div class="leg"><div class="ic" style="background:#ef4444;">址</div><div><div class="t">地址总线（红）</div><div class="d">只负责传送“门牌号”，单向：CPU → 内存</div></div></div>
+    <div class="leg"><div class="ic" style="background:#22c55e;">令</div><div><div class="t">控制总线（绿）</div><div class="d">传送“读 / 写”命令，告诉内存要存还是取</div></div></div>
+    <div class="leg"><div class="ic" style="background:#3b82f6;">数</div><div><div class="t">数据总线（蓝）</div><div class="d">传送真正的数据，双向：读和写都走它</div></div></div>
+    <div class="leg"><div class="ic" style="background:#8b5cf6;">MAR</div><div><div class="t">MAR 地址寄存器</div><div class="d">内存的“收件室”，暂时存放门牌号</div></div></div>
+    <div class="leg"><div class="ic" style="background:#f59e0b;">译</div><div><div class="t">地址译码器</div><div class="d">仓库管理员：照门牌号找到对应的柜子</div></div></div>
+    <div class="leg"><div class="ic" style="background:#0ea5e9;">MDR</div><div><div class="t">MDR 数据寄存器</div><div class="d">数据中转站：数据进出柜子前先在这里暂存</div></div></div>
+    <div class="leg"><div class="ic" style="background:#f59e0b;">柜</div><div><div class="t">存储单元（柜子）</div><div class="d">每个格子有唯一编号（地址），里面放一组 0/1 数据</div></div></div>
+  </div>
+
+  <p class="foot-note">
+    💡 小知识：内存（RAM）靠“地址”找数据，像快递柜凭取件码开门；<br>
+    地址总线、控制总线、数据总线各司其职，这就是存储器最基本的工作方式。（内存断电后数据会消失哦）
+  </p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const bin4 = n => n.toString(2).padStart(4,'0');
+const sleep = ms => new Promise(r => setTimeout(r, ms / state.speed));
+
+/* ---------- 场景坐标常量（与 CSS 布局一致） ---------- */
+const GRID_X = 1010, GRID_Y = 190, PITCH = 84, HALF = 37;
+const cellCX = i => GRID_X + (i % 4) * PITCH + HALF;
+const cellCY = i => GRID_Y + Math.floor(i / 4) * PITCH + HALF;
+
+/* ---------- 状态 ---------- */
+const state = {
+  op: 'write', addr: 5, bits: [0,1,1,0],
+  cells: {}, cellEls: [],
+  running: false, paused: false, stepMode: false, step: -1, speed: 1
+};
+// 预置几个“已有数据”的柜子，方便直接演示读取
+state.cells[2]='1010'; state.cells[5]='0110'; state.cells[11]='1100'; state.cells[14]='0011';
+
+const PART_NAMES = {
+  cpu:['CPU 处理器','#6366f1'], 'bus-addr':['地址总线','#ef4444'],
+  mar:['MAR 地址寄存器','#8b5cf6'], decoder:['地址译码器','#f59e0b'],
+  'bus-ctrl':['控制总线','#22c55e'], 'bus-data':['数据总线','#3b82f6'],
+  mdr:['MDR 数据寄存器','#0ea5e9'], cell:['存储单元（柜子）','#d97706']
+};
+
+/* ---------- 构建柜子 ---------- */
+const grid = $('grid');
+for (let i = 0; i < 16; i++) {
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.innerHTML = `
+    <div class="interior" id="int${i}"></div>
+    <div class="door"><div class="d-addr">${bin4(i)}</div><div class="d-no">${i} 号柜</div></div>`;
+  c.addEventListener('click', () => { if (!state.running) selectAddr(i); });
+  grid.appendChild(c);
+  state.cellEls.push(c);
+}
+function renderCell(i) {
+  const d = state.cells[i];
+  $('int'+i).innerHTML = d
+    ? d.split('').map(b => `<span class="b${b}">${b}</span>`).join('')
+    : '<span class="empty">空</span>';
+}
+for (let i = 0; i < 16; i++) renderCell(i);
+
+/* ---------- 地址按钮 ---------- */
+const addrGrid = $('addrGrid');
+for (let i = 0; i < 16; i++) {
+  const b = document.createElement('button');
+  b.textContent = i; b.dataset.i = i;
+  b.title = bin4(i);
+  b.addEventListener('click', () => selectAddr(i));
+  addrGrid.appendChild(b);
+}
+function selectAddr(i) {
+  state.addr = i;
+  document.querySelectorAll('.addr-grid button').forEach(b =>
+    b.classList.toggle('on', +b.dataset.i === i));
+  state.cellEls.forEach((c, idx) => c.classList.toggle('target', idx === i));
+}
+selectAddr(5);
+
+/* ---------- 数据位开关 ---------- */
+document.querySelectorAll('#bits button').forEach(b => {
+  b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    state.bits[i] = state.bits[i] ? 0 : 1;
+    renderBits();
+  });
+});
+function renderBits() {
+  document.querySelectorAll('#bits button').forEach((b, i) => {
+    b.textContent = state.bits[i];
+    b.classList.toggle('b1', state.bits[i] === 1);
+  });
+  $('dataPreview').textContent = state.bits.join('');
+}
+renderBits();
+
+/* ---------- 操作 / 速度切换 ---------- */
+$('opSeg').querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => {
+    if (state.running) return;
+    state.op = b.dataset.op;
+    $('opSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    $('dataGroup').style.opacity = state.op === 'write' ? '1' : '.4';
+    $('dataGroup').style.pointerEvents = state.op === 'write' ? 'auto' : 'none';
+    resetVisuals();
+  });
+});
+$('speedSeg').querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => {
+    state.speed = +b.dataset.s;
+    $('speedSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  });
+});
+
+/* ---------- 动画辅助 ---------- */
+const pktAddr = $('pktAddr'), pktCtrl = $('pktCtrl'), pktData = $('pktData');
+function pktShow(el, text) { el.textContent = text; el.style.opacity = 1; }
+function pktHide(el) { el.style.opacity = 0; }
+function goto(el, x, y, ms) {
+  return new Promise(res => {
+    const dur = ms / state.speed;
+    el.style.transition = dur ? `transform ${dur}ms cubic-bezier(.45,0,.25,1)` : 'none';
+    el.style.transform = `translate(${x - 58}px, ${y - 18}px)`;
+    if (!dur) return res();
+    setTimeout(res, dur + 70);
+  });
+}
+function setScreen(id, val) {
+  const el = $(id);
+  el.textContent = val;
+  el.classList.add('lit');
+  setTimeout(() => el.classList.remove('lit'), 900);
+}
+function pulse(id) {
+  const el = $(id);
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+}
+function bus(which, on) {
+  const map = { addr: ['pathAddr','pathMarDec'], ctrl: ['pathCtrl'], data: ['pathData'] };
+  map[which].forEach(p => $(p).classList.toggle('active', on));
+}
+function fan(kind, row, on) { $('fan' + kind.toUpperCase() + row).classList.toggle('active', on); }
+function cellPulse(i) {
+  const el = state.cellEls[i];
+  el.classList.remove('pulse-cell'); void el.offsetWidth; el.classList.add('pulse-cell');
+}
+
+/* ---------- 高亮 / 步骤信息 ---------- */
+function highlight(parts) {
+  ['cpu','mar','decoder','mdr'].forEach(id => $(id).classList.remove('hl'));
+  ['addr','ctrl','data'].forEach(b => bus(b, false));
+  for (let r = 0; r < 4; r++) { fan('r', r, false); fan('b', r, false); }
+  const target = state.cellEls[state.addr];
+  state.cellEls.forEach(c => { if (c !== target) c.classList.remove('open','flash'); });
+  parts.forEach(p => {
+    if (p === 'cell') { target.classList.add('open'); cellPulse(state.addr); }
+    else if (p.startsWith('bus-')) bus(p.slice(4), true);
+    else $(p).classList.add('hl');
+  });
+  // 柜子从第 4 步被找到后，保持开门直到流程结束/重置
+  if (state.step >= 3) target.classList.add('open');
+}
+function renderStepInfo(i, steps) {
+  const s = steps[i];
+  $('stepBadge').classList.remove('done');
+  $('stepBadge').innerHTML = `<span class="num">${i + 1}</span><span class="tot">共 ${steps.length} 步</span>`;
+  $('stepTitle').textContent = s.title;
+  $('stepDesc').innerHTML = s.desc;
+  $('chips').innerHTML = '<span class="chip">🔦 正在工作的部件：</span>' +
+    s.parts.map(p => `<span class="chip"><span class="dot" style="background:${PART_NAMES[p][1]}"></span>${PART_NAMES[p][0]}</span>`).join('');
+  $('progress').innerHTML = steps.map((_, k) =>
+    `<i class="${k < i ? 'done' : k === i ? 'cur' : ''}"></i>`).join('');
+}
+
+/* ---------- 构建 7 个步骤 ---------- */
+function buildSteps() {
+  const A = state.addr, bA = bin4(A), isW = state.op === 'write';
+  const row = Math.floor(A / 4), cx = cellCX(A), cy = cellCY(A);
+  let D = state.cells[A], empty = false;
+  if (!D) { D = '0000'; empty = true; }
+  const data = isW ? state.bits.join('') : D;
+  const cell = state.cellEls[A];
+
+  const steps = [
+    { title: '第 1 步：CPU 写好门牌号', parts: ['cpu'],
+      desc: `CPU 想${isW ? `把数据 <em>${data}</em> 存到` : '从'} <b>${bA}</b> 号柜子${isW ? '' : '里取出数据'}。
+        不管是存还是取，第一步都一样：先把<b>门牌号（地址）“${bA}”</b>写在地址单上。`,
+      action: async () => { setScreen('cpuAddr', bA); pulse('cpu'); await sleep(600); } },
+
+    { title: '第 2 步：地址单走红色地址总线', parts: ['cpu','bus-addr'],
+      desc: '地址单出发了！红色的是<b>地址总线</b>，它<b>只负责传送门牌号</b>，不传送数据，方向是单向的：CPU → 内存。',
+      action: async () => {
+        bus('addr', true);
+        pktShow(pktAddr, `📍 地址 ${bA}`);
+        await goto(pktAddr, 150, 262, 0);
+        await goto(pktAddr, 215, 262, 250);
+        await goto(pktAddr, 215, 120, 450);
+        await goto(pktAddr, 850, 120, 800);
+      } },
+
+    { title: '第 3 步：门牌号进 MAR 收件室', parts: ['mar'],
+      desc: `门牌号被送进 <b>MAR（地址寄存器）</b>——它是内存的“收件室”，先把门牌号<b>${bA}</b> 收好，等管理员来取。`,
+      action: async () => {
+        await goto(pktAddr, 895, 120, 300);
+        pktHide(pktAddr);
+        setScreen('marScreen', bA); pulse('mar');
+        bus('addr', false); await sleep(500);
+      } },
+
+    { title: '第 4 步：译码员找到对应柜子', parts: ['decoder','cell'],
+      desc: `<b>地址译码器</b>就像仓库管理员 👷：照着门牌号一排一排地找——找到了！<b>${bA}（${A} 号）柜</b>的灯亮了，柜门自动打开。`,
+      action: async () => {
+        fan('r', row, true); pulse('decoder'); await sleep(450);
+        cell.classList.add('open'); cellPulse(A);
+        await sleep(600);
+      } },
+
+    { title: `第 5 步：控制总线发出“${isW ? '写' : '读'}”命令`, parts: ['cpu','bus-ctrl'],
+      desc: isW
+        ? 'CPU 通过绿色的 <i>控制总线</i> 发出 <i>“写”信号</i>，意思是：门开好了，我要往里面<b>存东西</b>啦！'
+        : 'CPU 通过绿色的 <i>控制总线</i> 发出 <i>“读”信号</i>，意思是：门开好了，把里面的数据<b>取出来</b>！',
+      action: async () => {
+        setScreen('cpuCmd', isW ? '写 ✏️' : '读 📤');
+        bus('ctrl', true);
+        pktShow(pktCtrl, isW ? '✏️ 写命令' : '📤 读命令');
+        await goto(pktCtrl, 150, 300, 0);
+        await goto(pktCtrl, 960, 300, 1000);
+        pktHide(pktCtrl); bus('ctrl', false); await sleep(350);
+      } },
+
+    isW ? {
+      title: '第 6 步：数据走蓝色数据总线', parts: ['cpu','bus-data','mdr'],
+      desc: `要存的数据 <em>${data}</em> 出发了！蓝色的是<em>数据总线</em>，<b>真正的数据走这里</b>。数据先到 <b>MDR（数据寄存器）</b>这个中转站暂存。`,
+      action: async () => {
+        setScreen('cpuData', data);
+        bus('data', true);
+        pktShow(pktData, `📦 数据 ${data}`);
+        await goto(pktData, 150, 490, 0);
+        await goto(pktData, 850, 490, 850);
+        setScreen('mdrScreen', data); pulse('mdr');
+        await goto(pktData, 904, 490, 250);
+        pktHide(pktData); bus('data', false); await sleep(350);
+      }
+    } : {
+      title: '第 6 步：从柜子里取出数据', parts: ['cell','mdr'],
+      desc: `管理员从 <b>${bA}</b> 号柜取出数据 <em>${D}</em>，送到 <b>MDR（数据寄存器）</b>暂存。${empty ? '<span style="color:#ef4444">（这是个空柜子，读到的是 0000）</span>' : ''}`,
+      action: async () => {
+        fan('b', row, true);
+        pktShow(pktData, `📦 数据 ${D}`);
+        await goto(pktData, cx, cy, 0);
+        await goto(pktData, 904, 490, 700);
+        setScreen('mdrScreen', D); pulse('mdr');
+        pktHide(pktData); fan('b', row, false); await sleep(350);
+      }
+    },
+
+    isW ? {
+      title: '第 7 步：数据放进柜子，写入完成！', parts: ['mdr','cell'],
+      desc: `MDR 把数据 <em>${data}</em> 送进 <b>${bA}</b> 号柜，柜门关上、绿灯亮起——<b>写入完成！</b>🎉
+        这就是“存”的全过程：<b>给地址 → 找柜子 → 发写命令 → 传数据</b>。`,
+      action: async () => {
+        fan('b', row, true);
+        pktShow(pktData, `📦 数据 ${data}`);
+        await goto(pktData, 904, 490, 0);
+        await goto(pktData, cx, cy, 700);
+        pktHide(pktData); fan('b', row, false);
+        state.cells[A] = data; renderCell(A);
+        cell.classList.add('flash'); await sleep(900);
+      }
+    } : {
+      title: '第 7 步：数据回到 CPU，读取完成！', parts: ['mdr','bus-data','cpu'],
+      desc: `数据 <em>${D}</em> 沿蓝色<em>数据总线</em>回到 CPU——<b>读取完成！</b>🎉
+        注意看：数据总线是<b>双向</b>的，存数据、取数据都走它。这就是“取”的全过程：<b>给地址 → 找柜子 → 发读命令 → 数据送回</b>。`,
+      action: async () => {
+        bus('data', true);
+        pktShow(pktData, `📦 数据 ${D}`);
+        await goto(pktData, 904, 490, 0);
+        await goto(pktData, 150, 490, 1000);
+        pktHide(pktData);
+        setScreen('cpuData', D); pulse('cpu');
+        bus('data', false); await sleep(400);
+      }
+    }
+  ];
+  return steps;
+}
+
+/* ---------- 播放控制 ---------- */
+let steps = [];
+async function gate() { while (state.paused && state.running) await sleep(100); }
+
+async function run(auto) {
+  if (state.running) return;
+  resetVisuals(false);
+  steps = buildSteps();
+  state.running = true; state.paused = false; state.stepMode = !auto;
+  updateButtons();
+  for (let i = 0; i < steps.length; i++) {
+    state.step = i;
+    await gate();
+    if (!state.running) break;
+    renderStepInfo(i, steps);
+    highlight(steps[i].parts);
+    await steps[i].action();
+    await sleep(450);
+    if (state.stepMode) state.paused = true;
+    updateButtons();
+  }
+  state.running = false; state.paused = false;
+  updateButtons();
+  if (state.step >= steps.length - 1) showDone();
+}
+
+function showDone() {
+  const isW = state.op === 'write', bA = bin4(state.addr);
+  const D = state.cells[state.addr] || '0000';
+  $('stepBadge').classList.add('done');
+  $('stepBadge').innerHTML = '<span class="num">✓</span><span class="tot">完成</span>';
+  $('stepTitle').textContent = isW ? '🎉 写入完成！' : '🎉 读取完成！';
+  $('stepDesc').innerHTML = isW
+    ? `数据 <em>${state.bits.join('')}</em> 已经存进 <b>${bA}</b> 号柜。<br>小建议：现在切换到 <i>“📤 读取数据”</i>，选择同一个柜子，再看看数据是怎么被取出来的！`
+    : `CPU 从 <b>${bA}</b> 号柜取回了数据 <em>${D}</em>。<br>小建议：可以试试 <i>“📥 写入数据”</i>，换个柜子、换组数据，观察数据怎么走。`;
+}
+
+$('btnPlay').addEventListener('click', () => {
+  if (!state.running) run(true);
+  else { state.stepMode = false; state.paused = false; updateButtons(); }
+});
+$('btnStep').addEventListener('click', () => {
+  if (!state.running) run(false);
+  else { state.stepMode = true; state.paused = false; updateButtons(); }
+});
+$('btnPause').addEventListener('click', () => { state.paused = true; updateButtons(); });
+$('btnReset').addEventListener('click', () => {
+  state.running = false; state.paused = false;
+  setTimeout(resetVisuals, 60);
+});
+
+function updateButtons() {
+  const busy = state.running;
+  $('btnPlay').disabled = busy && !state.paused;
+  $('btnPlay').textContent = busy && state.paused ? '▶ 继续' : '▶ 自动播放';
+  $('btnStep').disabled = busy && !state.paused;
+  $('btnPause').disabled = !busy || state.paused;
+  $('btnReset').disabled = false;
+  $('opSeg').querySelectorAll('button').forEach(b => b.disabled = busy);
+  document.querySelectorAll('.addr-grid button').forEach(b => b.disabled = busy);
+  document.querySelectorAll('#bits button').forEach(b => b.disabled = busy || state.op !== 'write');
+}
+
+function resetVisuals(showReady = true) {
+  pktHide(pktAddr); pktHide(pktCtrl); pktHide(pktData);
+  ['marScreen','mdrScreen','cpuAddr','cpuData'].forEach(id => { $(id).textContent = '····'; $(id).classList.remove('lit'); });
+  $('cpuCmd').textContent = '待机'; $('cpuCmd').classList.remove('lit');
+  ['cpu','mar','decoder','mdr'].forEach(id => $(id).classList.remove('hl','pulse'));
+  ['addr','ctrl','data'].forEach(b => bus(b, false));
+  for (let r = 0; r < 4; r++) { fan('r', r, false); fan('b', r, false); }
+  state.cellEls.forEach((c, i) => {
+    c.classList.remove('open','flash','pulse-cell');
+    c.classList.toggle('target', i === state.addr);
+  });
+  state.step = -1;
+  if (showReady) {
+    $('stepBadge').classList.remove('done');
+    $('stepBadge').innerHTML = '<span class="num">?</span><span class="tot">共 7 步</span>';
+    $('stepTitle').textContent = '准备就绪';
+    $('stepDesc').innerHTML = '先在上面选择 <b>“写入”</b> 或 <i>“读取”</i>，再选一个柜子号（也可以直接点右边的柜子），然后点击 <em>▶ 自动播放</em> 或 <em>⏭ 单步</em>。跟着高亮发光的部件，看数据是怎么一步步走路的！';
+    $('chips').innerHTML = '';
+    $('progress').innerHTML = '';
+  }
+  updateButtons();
+}
+updateButtons();
+
+/* ---------- 场景自适应缩放 ---------- */
+function fit() {
+  const w = $('sceneWrap').clientWidth - 20;
+  const s = Math.min(1, w / 1340);
+  $('scene').style.transform = `scale(${s})`;
+  $('sceneWrap').style.height = (640 * s) + 'px';
+}
+window.addEventListener('resize', fit);
+fit();
+</script>
+</body>
+</html>
